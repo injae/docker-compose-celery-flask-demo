@@ -1,0 +1,42 @@
+version: '3.9'
+
+networks:
+    main:
+
+services:
+    rabbitmq:
+        container_name: rabbitmq
+        hostname: rabbitmq
+        image: rabbitmq:latest
+        networks:
+            - main
+        ports:
+            - "5672:5672"
+        restart: on-failure
+
+    worker:
+        build: celery/
+        container_name: worker
+        hostname: worker
+        command: sh -c "wait-for rabbitmq:5672 && cd src && celery -A tasks worker -l info"
+        environment:
+            - BROKER_URL=pyamqp://rabbitmq:5672
+            - RESULT_BACKEND=rpc://
+        networks:
+            main:
+        depends_on:
+            - rabbitmq
+        restart: on-failure
+
+    app:
+        build: app/
+        container_name: app
+        hostname: app
+        depends_on:
+            - rabbitmq
+            - worker
+        networks:
+            main:
+        ports:
+            - "8000:8000"
+        restart: on-failure
